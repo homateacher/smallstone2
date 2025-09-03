@@ -13,7 +13,7 @@
     .card.is-flipped { transform: rotateY(180deg); }
     .card-face { backface-visibility: hidden; }
     .card-back { transform: rotateY(180deg); }
-    /* 보이지 않는 면 완전 숨김 */
+    /* 보이지 않는 면 완전 숨김 (검은 화면 방지) */
     .hidden-face { opacity: 0; pointer-events: none; }
     .visible-face { opacity: 1; pointer-events: auto; }
   </style>
@@ -146,8 +146,8 @@
       document.getElementById('btn-copy').onclick = async () => {
         const obj = SITUATIONS.find(s=>s.id===current);
         if(!obj) return;
-        try { await navigator.clipboard.writeText(`오늘의 이모티콘 주제: ${obj.title}`); toast('복사했어요!'); }
-        catch { toast('복사 실패'); }
+        try{ await navigator.clipboard.writeText(`오늘의 이모티콘 주제: ${obj.title}`); toast('복사했어요!'); }
+        catch{ toast('복사 실패'); }
       };
     }
 
@@ -158,10 +158,12 @@
     }
     function drawNew(){
       let p=pool();
-      if(p.length===0 && avoidRepeats){ usedIds=[]; p=pool(); }
+      if (p.length===0 && avoidRepeats){
+        usedIds=[]; p=pool();
+      }
       const next=p[Math.floor(Math.random()*p.length)];
       current=next.id;
-      usedIds=Array.from(new Set([...usedIds,next.id]));
+      usedIds=Array.from(new Set([...usedIds, next.id]));
       history=[{id:next.id,t:Date.now()}, ...history].slice(0,30);
     }
 
