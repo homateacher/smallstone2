@@ -4,18 +4,25 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>오늘 그릴 그림은? | 조약돌 마을</title>
-  <!-- Tailwind CDN (무빌드) -->
+  <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    /* 3D 카드 뒤집기 */
-    .scene { perspective: 1200px; }
-    .card { transform-style: preserve-3d; transition: transform .8s cubic-bezier(.2,.8,.2,1); }
+    /* 3D 카드 뒤집기 + 사파리 대응 */
+    .scene { perspective: 1200px; -webkit-perspective: 1200px; }
+    .card {
+      transform-style: preserve-3d; -webkit-transform-style: preserve-3d;
+      transition: transform .8s cubic-bezier(.2,.8,.2,1);
+      will-change: transform;
+    }
     .card.is-flipped { transform: rotateY(180deg); }
-    .card-face { backface-visibility: hidden; }
+    .card-face { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
     .card-back { transform: rotateY(180deg); }
-    /* 보이지 않는 면 완전 숨김 (검은 화면 방지) */
+    /* 보이지 않는 면 완전 숨김 */
     .hidden-face { opacity: 0; pointer-events: none; }
     .visible-face { opacity: 1; pointer-events: auto; }
+    /* 버튼 포커스 링 */
+    .focus-ring { outline: none; }
+    .focus-ring:focus { box-shadow: 0 0 0 2px rgba(251,191,36,.6); }
   </style>
 </head>
 <body class="min-h-screen w-full bg-gradient-to-br from-[#0f172a] via-[#111827] to-[#1f2937] text-white flex items-center justify-center p-4">
@@ -42,7 +49,7 @@
       { id:15,title:"사랑 고백/애정 표현",category:"대화",examples:["하트 눈","쪽! 키스","꽃다발","러브 레터","하트 배경"] },
       { id:16,title:"심심할 때",category:"상황",examples:["하품","탁상시계","볼 긁적","심드렁 표정","틈새 낙서"] },
       { id:17,title:"피곤하거나 지친 상황",category:"상황",examples:["다크서클","커피","눈 반쯤 감김","기지개","zzz 말풍선"] },
-      { id:18,title:"득의양양/자랑하는 상황",category:"감정",examples:["선글라스","엄지척","트로피","반짝 효과","자신만만 포즈"] },
+      { id:18,title:"득의양양/자랑",category:"감정",examples:["선글라스","엄지척","트로피","반짝 효과","자신만만 포즈"] },
       { id:19,title:"장난치는 상황",category:"상황",examples:["메롱","깜짝 상자","장난 종","몰카 카메라","장난 스티커"] },
       { id:20,title:"기다리는 상황 (언제 와?)",category:"상황",examples:["모래시계","시계 응시","문 쳐다봄","발 동동","'언제와?' 말풍선"] },
       { id:21,title:"고민하는 상황 (흠…)",category:"감정",examples:["턱 괴기","물음표","미로","방울땀","저울 아이콘"] },
@@ -72,25 +79,45 @@
       { id:45,title:"집중 업무/마감",category:"상황",examples:["타타탁 키보드","마감 타이머","포스트잇","커피 2잔","다크서클"] },
     ];
 
-    /* ---------- 상태 & 유틸 ---------- */
+    /* ---------- 저장소 ---------- */
+    const storage = {
+      get(k, f){ try{ const r=localStorage.getItem(k); return r?JSON.parse(r):f; }catch(e){ return f; } },
+      set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+    };
+
+    /* ---------- 상태 ---------- */
     let flipped=false, current=null;
-    let usedIds=[], avoidRepeats=true, activeCats=[...CATEGORIES], history=[];
+    let usedIds=storage.get("emojiIdea.usedIds",[]);
+    let history=storage.get("emojiIdea.history",[]);
+
     const $ = s => document.querySelector(s);
-    const toast = (msg)=>{ const el=document.createElement('div'); el.className='fixed top-4 left-1/2 -translate-x-1/2 z-50 rounded-full bg-white text-black px-4 py-2 shadow-lg text-sm'; el.textContent=msg; document.body.appendChild(el); setTimeout(()=>el.remove(),1600); };
+    const toast = (msg)=>{
+      const el=document.createElement('div');
+      el.className='fixed top-4 left-1/2 -translate-x-1/2 z-50 rounded-full bg-white text-black px-4 py-2 shadow-lg text-sm';
+      el.textContent=msg; document.body.appendChild(el);
+      setTimeout(()=>el.remove(),1600);
+    };
+    const save = ()=>{
+      storage.set("emojiIdea.usedIds", usedIds);
+      storage.set("emojiIdea.history", history);
+    };
 
     /* ---------- 렌더 ---------- */
     function render(){
       const currentObj = SITUATIONS.find(s=>s.id===current) || null;
 
-      $('#app').innerHTML = `
+      document.getElementById('app').innerHTML = `
         <div>
-          <header class="mb-4">
-            <h1 class="text-2xl sm:text-3xl font-bold tracking-tight">오늘 그릴 그림은?</h1>
-            <p class="text-sm text-gray-300/90">카카오톡 이모티콘 주제 랜덤 추천기</p>
+          <header class="flex items-center justify-between mb-4">
+            <div>
+              <h1 class="text-2xl sm:text-3xl font-bold tracking-tight">오늘 그릴 그림은?</h1>
+              <p class="text-sm text-gray-300/90">카카오톡 이모티콘 주제 랜덤 추천기</p>
+            </div>
+            <button id="btn-history" class="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 hover:bg-white/10 transition focus-ring">🕘 <span class="hidden sm:inline">히스토리</span></button>
           </header>
 
           <div class="scene relative">
-            <div id="card" class="card relative h-64 sm:h-72 w-full">
+            <div id="card" class="card relative h-64 sm:h-72 w-full ${flipped?'is-flipped':''}">
               <!-- 앞면 -->
               <div class="card-face front absolute inset-0 rounded-3xl shadow-2xl overflow-hidden border border-emerald-300/25 ${flipped?'hidden-face':'visible-face'}">
                 <div class="h-full w-full bg-gradient-to-br from-[#cfe8b6] via-[#b9d8a2] to-[#9dc58a] relative flex flex-col items-center justify-center text-emerald-950/90">
@@ -103,6 +130,7 @@
               </div>
               <!-- 뒷면 -->
               <div class="card-face card-back absolute inset-0 rounded-3xl shadow-2xl overflow-hidden border border-white/10 ${flipped?'visible-face':'hidden-face'}">
+                <!-- ★★★ 검은 화면 방지를 위해 확실한 배경 지정 ★★★ -->
                 <div class="h-full w-full bg-gradient-to-b from-slate-900/70 to-slate-800/60 backdrop-blur-sm">
                   <div class="h-full w-full flex flex-col items-center justify-center p-6 text-center">
                     ${currentObj ? `
@@ -121,17 +149,17 @@
                 </div>
               </div>
             </div>
-            <button id="btn-flip" class="absolute inset-0 rounded-3xl ring-0 focus:outline-none focus:ring-2 focus:ring-amber-300/60" aria-label="카드 뒤집기"></button>
+            <button id="btn-flip" class="absolute inset-0 rounded-3xl focus-ring" aria-label="카드 뒤집기"></button>
           </div>
 
           <div class="mt-4 grid grid-cols-2 gap-2">
-            <button id="btn-new" class="flex items-center justify-center gap-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 px-3 py-2 transition">🔀 <span>새 카드</span></button>
-            <button id="btn-copy" class="flex items-center justify-center gap-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 px-3 py-2 transition">📋 <span>복사</span></button>
+            <button id="btn-new" class="flex items-center justify-center gap-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 px-3 py-2 transition focus-ring">🔀 <span>새 카드</span></button>
+            <button id="btn-copy" class="flex items-center justify-center gap-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 px-3 py-2 transition focus-ring">📋 <span>복사</span></button>
           </div>
 
           <div class="mt-3 text-xs text-gray-300/80 flex items-center justify-between">
-            <span>카테고리: ${activeCats.join(', ')}</span>
             <span>추천 주제는 계속 추가 중!</span>
+            <span class="opacity-70">조약돌 마을</span>
           </div>
         </div>
       `;
@@ -142,29 +170,71 @@
         else { flipped=!flipped; }
         render();
       };
-      document.getElementById('btn-new').onclick = () => { drawNew(); flipped=false; render(); };
+      document.getElementById('btn-new').onclick = () => {
+        drawNew();
+        flipped=false; // 새 카드는 앞면부터
+        render();
+      };
       document.getElementById('btn-copy').onclick = async () => {
         const obj = SITUATIONS.find(s=>s.id===current);
         if(!obj) return;
         try{ await navigator.clipboard.writeText(`오늘의 이모티콘 주제: ${obj.title}`); toast('복사했어요!'); }
         catch{ toast('복사 실패'); }
       };
+      document.getElementById('btn-history').onclick = openHistory;
     }
 
     /* ---------- 추천 로직 ---------- */
-    function pool(){
-      const list=SITUATIONS.filter(s=> activeCats.includes(s.category));
-      return avoidRepeats ? list.filter(s=> !usedIds.includes(s.id)) : list;
-    }
     function drawNew(){
-      let p=pool();
-      if (p.length===0 && avoidRepeats){
-        usedIds=[]; p=pool();
-      }
-      const next=p[Math.floor(Math.random()*p.length)];
-      current=next.id;
-      usedIds=Array.from(new Set([...usedIds, next.id]));
-      history=[{id:next.id,t:Date.now()}, ...history].slice(0,30);
+      const pool = SITUATIONS; // (현재는 카테고리 필터 없이 전체)
+      const next = pool[Math.floor(Math.random()*pool.length)];
+      current = next.id;
+      usedIds = Array.from(new Set([...usedIds, next.id]));
+      history = [{id: next.id, t: Date.now()}, ...history].slice(0, 50);
+      save();
+    }
+
+    /* ---------- 히스토리 모달 ---------- */
+    function openHistory(){
+      const wrap=document.createElement('div');
+      wrap.className='fixed inset-0 z-50 flex items-center justify-center';
+      wrap.innerHTML=`
+        <div class="absolute inset-0 bg-black/60"></div>
+        <div class="relative w-[92vw] max-w-lg rounded-2xl border border-white/10 bg-slate-900/90 backdrop-blur p-4 text-white max-h-[70vh] overflow-y-auto">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-lg font-semibold">히스토리</h3>
+            <button id="close" class="rounded-lg bg-white/5 hover:bg-white/10 p-1">✖️</button>
+          </div>
+          ${history.length===0? '<p class="text-sm text-gray-300/80">아직 히스토리가 없어요. 카드를 몇 번 뽑아보세요!</p>': ''}
+          <div class="space-y-3 pr-1">
+            ${history.map(h=>{
+              const it=SITUATIONS.find(s=>s.id===h.id);
+              const date=new Date(h.t).toLocaleString();
+              return `<div class="flex items-center justify-between rounded-xl bg-white/5 border border-white/10 p-3">
+                <div>
+                  <p class="text-sm font-medium">${it?.title || '(삭제됨)'}</p>
+                  <p class="text-xs text-gray-300/70">${it?.category || ''} · ${date}</p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button class="rounded-lg border border-white/15 bg-white/5 px-2 py-1 text-xs hover:bg-white/10" data-copy="${it?.title || ''}">복사</button>
+                  <button class="rounded-lg border border-white/15 bg-white/5 px-2 py-1 text-xs hover:bg-white/10" data-view="${it?.id || ''}">보기</button>
+                </div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+      document.body.appendChild(wrap);
+      wrap.querySelector('#close').onclick=()=> wrap.remove();
+      wrap.querySelectorAll('[data-copy]').forEach(btn=> btn.onclick = async (e)=>{
+        const val=e.currentTarget.getAttribute('data-copy');
+        if(!val) return;
+        try{ await navigator.clipboard.writeText(val); toast('복사했어요'); }catch{ toast('복사 실패'); }
+      });
+      wrap.querySelectorAll('[data-view]').forEach(btn=> btn.onclick = (e)=>{
+        const id=Number(e.currentTarget.getAttribute('data-view'));
+        if(!id) return;
+        current=id; flipped=true; save(); render(); wrap.remove();
+      });
     }
 
     // 초기 렌더
