@@ -1,0 +1,305 @@
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Sparkles, Shuffle, Copy, Heart, HeartOff, History, Settings as SettingsIcon, X } from "lucide-react";
+
+// -----------------------------
+// 데이터: 상황 리스트 (총 32개)
+// 각 항목 examples = '그림 요소 추천' 5가지
+// -----------------------------
+const SITUATIONS = [
+  { id: 1,  title: "축하하는 대화 상황", category: "대화", examples: ["케이크","폭죽","꽃가루","파티모자","'축하해!' 말풍선"] },
+  { id: 2,  title: "위로해주는 대화 상황", category: "대화", examples: ["토닥토닥 손","따뜻한 담요","티슈","하트 핫팩","'괜찮아' 말풍선"] },
+  { id: 3,  title: "상담해주는 대화 상황", category: "대화", examples: ["노트와 펜","헤드셋","상담소 간판","체크리스트","생각 구름"] },
+  { id: 4,  title: "잔소리하는 상황", category: "대화", examples: ["허리에 손","손가락 짚기","호루라기","경고 표지","찌릿 눈썹"] },
+  { id: 5,  title: "애교부리는 상황", category: "감정", examples: ["반짝눈","하트 뿅","브이 포즈","볼 콕","달콤 말풍선"] },
+  { id: 6,  title: "웃는 상황", category: "감정", examples: ["눈웃음","박장대소","'ㅋㅋ' 말풍선","웃음 눈물","하이파이브"] },
+  { id: 7,  title: "우는 상황", category: "감정", examples: ["뚝뚝 눈물","울먹 말풍선","휴지","콧물 방울","빗방울 배경"] },
+  { id: 8,  title: "슬퍼하는 상황", category: "감정", examples: ["고개 푹","비구름","회색 배경","작아진 자세","한숨 말풍선"] },
+  { id: 9,  title: "멋쩍어하는 상황(민망)", category: "감정", examples: ["뒷머리 긁적","식은땀","볼 발그레","시선 회피","머쓱 표정"] },
+  { id: 10, title: "부탁하는 상황", category: "대화", examples: ["합장 손","반짝 눈빛","'제발~' 말풍선","리본 상자","고개 끄덕"] },
+  { id: 11, title: "감사하는 상황", category: "대화", examples: ["꾸벅 인사","감사 카드","선물 상자","'고마워' 말풍선","꽃다발"] },
+  { id: 12, title: "마무리 인사하는 상황", category: "대화", examples: ["손 흔들기","잘자 모자","문 닫힘","별·달 배경","'안녕~' 말풍선"] },
+  { id: 13, title: "화내는 상황 (버럭)", category: "감정", examples: ["불꽃 눈썹","증기 분출","분노 게이지","빨간 배경","번개 이펙트"] },
+  { id: 14, title: "놀라는 상황 (헉!)", category: "감정", examples: ["동그란 눈","감탄 부호!","점프","머리 곤두섬","'헉' 말풍선"] },
+  { id: 15, title: "사랑 고백/애정 표현", category: "대화", examples: ["하트 눈","쪽! 키스","꽃다발","러브 레터","하트 배경"] },
+  { id: 16, title: "심심할 때", category: "상황", examples: ["하품","탁상시계","볼 긁적","심드렁 표정","틈새 낙서"] },
+  { id: 17, title: "피곤하거나 지친 상황", category: "상황", examples: ["다크서클","커피","눈 반쯤 감김","기지개","zzz 말풍선"] },
+  { id: 18, title: "득의양양/자랑하는 상황", category: "감정", examples: ["선글라스","엄지척","트로피","반짝 효과","자신만만 포즈"] },
+  { id: 19, title: "장난치는 상황", category: "상황", examples: ["메롱","깜짝 상자","장난 종","몰카 카메라","장난 스티커"] },
+  { id: 20, title: "기다리는 상황 (언제 와?)", category: "상황", examples: ["모래시계","시계 응시","문 쳐다봄","발 동동","'언제와?' 말풍선"] },
+  { id: 21, title: "고민하는 상황 (흠…)", category: "감정", examples: ["턱 괴기","물음표","미로","방울땀","저울 아이콘"] },
+  { id: 22, title: "도망가거나 회피하는 상황", category: "상황", examples: ["먼지 구름","식은땀","숨기","뒤돌아 도망","벽 뒤 훔쳐보기"] },
+  { id: 23, title: "사과하는 상황", category: "대화", examples: ["두 손 모아 사과","사과 카드","'미안해' 말풍선","고개 숙임","작아진 캐릭터"] },
+  { id: 24, title: "공감/맞장구 치는 상황", category: "대화", examples: ["끄덕끄덕","'ㅇㅇ' 말풍선","손뼉 척","싱긋 미소","동그라미 표시"] },
+  { id: 25, title: "약속/시간 잡는 상황", category: "대화", examples: ["달력","시계","체크 아이콘","메신저 말풍선","약속 도장"] },
+  { id: 26, title: "응원/파이팅 하는 상황", category: "대화", examples: ["응원봉/메가폰","'파이팅!' 말풍선","근육 포즈","깃발","불꽃 효과"] },
+  { id: 27, title: "칭찬하는 상황", category: "대화", examples: ["별 스티커","칭찬 도장","왕관","엄지척","'최고!' 말풍선"] },
+  { id: 28, title: "배고픈 상황", category: "상황", examples: ["꼬르륵 말풍선","수저 포크","김나는 음식","침 방울","빈 접시"] },
+  { id: 29, title: "지각하는 상황", category: "상황", examples: ["알람 시계 폭발","헐레벌떡 달리기","땀방울","넘어진 운동화","'지각!' 말풍선"] },
+  { id: 30, title: "선물하는 상황", category: "대화", examples: ["리본 상자","카드","하트 태그","전달 제스처","서프라이즈 폭죽"] },
+  { id: 31, title: "눈치 보는 상황", category: "감정", examples: ["힐끔 시선","점점점 말풍선","식은땀 한 방울","작아지기 포즈","커튼 뒤 힐끔"] },
+  { id: 32, title: "비밀/쉿 상황", category: "대화", examples: ["입에 손가락 쉿","지퍼 입","자물쇠 아이콘","작은 말풍선","어두운 배경"] },
+];
+
+const CATEGORIES = ["대화", "감정", "상황"] as const;
+type Category = typeof CATEGORIES[number];
+
+const storage = {
+  get<T>(key: string, fallback: T): T {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? (JSON.parse(raw) as T) : fallback;
+    } catch { return fallback; }
+  },
+  set<T>(key: string, value: T) {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+  },
+};
+
+export default function App() {
+  const [flipped, setFlipped] = useState(false);
+  const [current, setCurrent] = useState<number | null>(null);
+  const [usedIds, setUsedIds] = useState<number[]>(() => storage.get("emojiIdea.usedIds", []));
+  const [favorites, setFavorites] = useState<number[]>(() => storage.get("emojiIdea.favs", []));
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const [avoidRepeats, setAvoidRepeats] = useState<boolean>(() => storage.get("emojiIdea.avoidRepeats", true));
+  const [activeCats, setActiveCats] = useState<Category[]>(() => storage.get("emojiIdea.activeCats", CATEGORIES.slice() as unknown as Category[]));
+
+  const available = useMemo(() => {
+    const pool = SITUATIONS.filter(s => activeCats.includes(s.category as Category));
+    if (!avoidRepeats) return pool;
+    return pool.filter(s => !usedIds.includes(s.id));
+  }, [usedIds, avoidRepeats, activeCats]);
+
+  const history = useMemo(() => storage.get<{ id: number; t: number }[]>("emojiIdea.history", []), []);
+  const historyRef = useRef(history);
+
+  useEffect(() => storage.set("emojiIdea.usedIds", usedIds), [usedIds]);
+  useEffect(() => storage.set("emojiIdea.favs", favorites), [favorites]);
+  useEffect(() => storage.set("emojiIdea.avoidRepeats", avoidRepeats), [avoidRepeats]);
+  useEffect(() => storage.set("emojiIdea.activeCats", activeCats), [activeCats]);
+
+  useEffect(() => { if (!toast) return; const id = setTimeout(() => setToast(null), 1800); return () => clearTimeout(id); }, [toast]);
+
+  const currentObj = useMemo(() => SITUATIONS.find(s => s.id === current) || null, [current]);
+
+  const handleFlip = () => {
+    if (current === null) { drawNew(); setFlipped(true); }
+    else { setFlipped(v => !v); }
+  };
+
+  const drawNew = () => {
+    const pool = available.length ? available : SITUATIONS.filter(s => activeCats.includes(s.category as Category));
+    if (available.length === 0 && avoidRepeats) { setUsedIds([]); showToast("모든 주제를 소진했어요! 목록을 초기화합니다."); }
+    const next = pool[Math.floor(Math.random() * pool.length)];
+    setCurrent(next.id);
+    setFlipped(false); // 새 카드는 앞면 상태
+
+    setUsedIds(prev => Array.from(new Set([...prev, next.id])));
+    const h = [{ id: next.id, t: Date.now() }, ...historyRef.current].slice(0, 30);
+    historyRef.current = h; storage.set("emojiIdea.history", h);
+  };
+
+  const toggleFav = () => { if (!currentObj) return; setFavorites(prev => prev.includes(currentObj.id) ? prev.filter(i => i !== currentObj.id) : [...prev, currentObj.id]); };
+  const copyText = async () => { const text = currentObj ? `오늘의 이모티콘 주제: ${currentObj.title}` : "오늘 그릴 그림은?"; try { await navigator.clipboard.writeText(text); showToast("클립보드에 복사했어요!"); } catch { showToast("복사에 실패했어요"); } };
+  const showToast = (msg: string) => setToast(msg);
+
+  const isFav = currentObj ? favorites.includes(currentObj.id) : false;
+  const remaining = available.length;
+
+  return (
+    <div className="min-h-screen w-full bg-gradient-to-br from-[#0f172a] via-[#111827] to-[#1f2937] text-white flex items-center justify-center p-4">
+      <div className="w-full max-w-lg">
+        <header className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">오늘 그릴 그림은?</h1>
+            <p className="text-sm text-gray-300/90">카카오톡 이모티콘 주제 랜덤 추천기</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setSettingsOpen(true)} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 hover:bg-white/10 transition" title="설정">
+              <SettingsIcon size={18} /> <span className="hidden sm:inline">설정</span>
+            </button>
+            <button onClick={() => setHistoryOpen(true)} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 hover:bg-white/10 transition" title="히스토리">
+              <History size={18} /> <span className="hidden sm:inline">히스토리</span>
+            </button>
+          </div>
+        </header>
+
+        {/* 카드 영역 */}
+        <div className="relative" style={{ perspective: 1200 }}>
+          <motion.div className="relative h-64 sm:h-72 w-full" style={{ transformStyle: 'preserve-3d' }} animate={{ rotateY: flipped ? 180 : 0 }} transition={{ duration: 0.8, ease: [0.2, 0.8, 0.2, 1] }}>
+            {/* 앞면 */}
+            <motion.div className="absolute inset-0 rounded-3xl shadow-2xl overflow-hidden border border-emerald-300/25" style={{ backfaceVisibility: "hidden" }} initial={{ opacity: 1 }} animate={{ opacity: flipped ? 0 : 1 }}>
+              <div className="h-full w-full bg-gradient-to-br from-[#cfe8b6] via-[#b9d8a2] to-[#9dc58a] relative">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_20%,rgba(255,255,255,0.45),transparent_45%),radial-gradient(circle_at_80%_10%,rgba(255,255,255,0.25),transparent_55%)]" />
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-emerald-950/90">
+                  <p className="text-[40px] sm:text-[48px] font-extrabold tracking-tight drop-shadow-sm">조약돌 마을</p>
+                  <p className="mt-2 text-sm opacity-80">카드를 뒤집어 주제를 확인하세요</p>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* 뒷면 */}
+            <motion.div className="absolute inset-0 rounded-3xl shadow-2xl overflow-hidden border border-white/10" style={{ transform: "rotateY(180deg)", backfaceVisibility: "hidden" }}>
+              <div className="h-full w-full bg-gradient-to-b from-slate-900/70 to-slate-800/60 backdrop-blur-sm">
+                <div className="h-full w-full flex flex-col items-center justify-center p-6">
+                  <AnimatePresence mode="wait">
+                    {currentObj ? (
+                      <motion.div key={currentObj.id} initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }} transition={{ duration: 0.25 }} className="text-center">
+                        <div className="inline-flex items-center gap-2 text-amber-300/90 mb-2">
+                          <Sparkles size={18} />
+                          <span className="text-sm">짜잔~ 오늘의 상황</span>
+                        </div>
+                        <h2 className="text-xl sm:text-2xl font-bold leading-snug mb-2">{currentObj.title}</h2>
+                        <div className="text-xs uppercase tracking-wide text-gray-300/80 mb-1">{currentObj.category}</div>
+                        <div className="text-xs text-gray-300/80 mb-2">그림 요소 추천</div>
+                        <div className="flex flex-wrap items-center justify-center gap-2">
+                          {currentObj.examples.map((ex, i) => (
+                            <span key={i} className="text-xs rounded-full bg-white/10 border border-white/10 px-3 py-1">{ex}</span>
+                          ))}
+                        </div>
+                      </motion.div>
+                    ) : (
+                      <motion.div key="placeholder" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center text-gray-200">
+                        <p className="text-sm">아직 카드를 뒤집지 않았어요</p>
+                        <p className="text-xs text-gray-400">터치/클릭으로 시작!</p>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+
+          {/* 카드 클릭 핫스팟 */}
+          <button onClick={handleFlip} className="absolute inset-0 rounded-3xl ring-0 focus:outline-none focus:ring-2 focus:ring-amber-300/60" aria-label="카드 뒤집기" />
+        </div>
+
+        {/* 컨트롤 바 */}
+        <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <button onClick={drawNew} className="flex items-center justify-center gap-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 px-3 py-2 transition">
+            <Shuffle size={18} /> <span>새 카드</span>
+          </button>
+          <button onClick={copyText} className="flex items-center justify-center gap-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 px-3 py-2 transition">
+            <Copy size={18} /> <span>복사</span>
+          </button>
+          <button onClick={toggleFav} className="flex items-center justify-center gap-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 px-3 py-2 transition">
+            {isFav ? <HeartOff size={18} /> : <Heart size={18} />} <span>{isFav ? "즐겨찾기 해제" : "즐겨찾기"}</span>
+          </button>
+          <button onClick={() => setHistoryOpen(true)} className="flex items-center justify-center gap-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 px-3 py-2 transition">
+            <History size={18} /> <span>히스토리</span>
+          </button>
+        </div>
+
+        {/* 남은 개수 / 옵션 요약 */}
+        <div className="mt-3 text-xs text-gray-300/80 flex items-center justify-between">
+          <span>총 {SITUATIONS.length}개 · 카테고리: {activeCats.join(", ")}</span>
+          <span>{avoidRepeats ? `남은 주제 ${remaining}개 (중복 방지 ON)` : "중복 허용"}</span>
+        </div>
+      </div>
+
+      {/* 토스트 */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -20, opacity: 0 }} className="fixed top-4 left-1/2 -translate-x-1/2 z-50 rounded-full bg-white text-black px-4 py-2 shadow-lg">
+            <span className="text-sm">{toast}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 설정 모달 */}
+      <Modal open={settingsOpen} onClose={() => setSettingsOpen(false)} title="설정">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium">중복 방지</p>
+              <p className="text-sm text-gray-300/80">모든 주제를 한 번씩 볼 때까지 중복 없이 추천</p>
+            </div>
+            <Toggle checked={avoidRepeats} onChange={setAvoidRepeats} />
+          </div>
+
+          <div>
+            <p className="font-medium mb-2">카테고리</p>
+            <div className="flex flex-wrap gap-2">
+              {CATEGORIES.map(cat => (
+                <label key={cat} className={`cursor-pointer select-none rounded-full border px-3 py-1 text-sm ${activeCats.includes(cat) ? "bg-white text-black border-white" : "bg-white/5 border-white/20"}`}>
+                  <input type="checkbox" className="hidden" checked={activeCats.includes(cat)} onChange={(e) => { setActiveCats(prev => e.target.checked ? Array.from(new Set([...prev, cat])) as Category[] : (prev.filter(c => c !== cat) as Category[])); }} />
+                  {cat}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <button onClick={() => { setUsedIds([]); showToast("노출 기록을 초기화했어요"); }} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm hover:bg-white/10">노출 기록 초기화</button>
+            <button onClick={() => { setFavorites([]); showToast("즐겨찾기를 비웠어요"); }} className="rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm hover:bg-white/10">즐겨찾기 비우기</button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 히스토리 모달 */}
+      <Modal open={historyOpen} onClose={() => setHistoryOpen(false)} title="히스토리">
+        <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
+          {historyRef.current.length === 0 && (<p className="text-sm text-gray-300/80">아직 히스토리가 없어요. 카드를 몇 번 뽑아보세요!</p>)}
+          {historyRef.current.map((h, idx) => {
+            const item = SITUATIONS.find(s => s.id === h.id)!;
+            const date = new Date(h.t);
+            return (
+              <div key={idx} className="flex items-center justify-between rounded-xl bg-white/5 border border-white/10 p-3">
+                <div>
+                  <p className="text-sm font-medium">{item.title}</p>
+                  <p className="text-xs text-gray-300/70">{item.category} · {date.toLocaleString()}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={async () => { await navigator.clipboard.writeText(item.title); showToast("복사했어요"); }} className="rounded-lg border border-white/15 bg-white/5 px-2 py-1 text-xs hover:bg-white/10">복사</button>
+                  <button onClick={() => { setCurrent(item.id); setFlipped(true); }} className="rounded-lg border border-white/15 bg-white/5 px-2 py-1 text-xs hover:bg-white/10">보기</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {favorites.length > 0 && (
+          <div className="mt-4">
+            <p className="font-medium mb-2">즐겨찾기 ({favorites.length})</p>
+            <div className="flex flex-wrap gap-2">
+              {favorites.map(id => {
+                const f = SITUATIONS.find(s => s.id === id)!;
+                return (
+                  <button key={id} onClick={() => { setCurrent(f.id); setFlipped(true); }} className="text-xs rounded-full bg-pink-500/20 border border-pink-400/30 px-3 py-1 hover:bg-pink-500/30">{f.title}</button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
+}
+
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button onClick={() => onChange(!checked)} className={`h-6 w-11 rounded-full p-0.5 transition ${checked ? "bg-emerald-400" : "bg-white/20"}`} role="switch" aria-checked={checked}>
+      <div className={`h-5 w-5 rounded-full bg-white shadow transition ${checked ? "translate-x-5" : "translate-x-0"}`} />
+    </button>
+  );
+}
+
+function Modal({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: React.ReactNode }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-[92vw] max-w-lg rounded-2xl border border-white/10 bg-slate-900/90 backdrop-blur p-4 text-white">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-lg font-semibold">{title}</h3>
+          <button onClick={onClose} className="rounded-lg bg-white/5 hover:bg-white/10 p-1"><X size={18} /></button>
+        </div>
+        {children}
+      </motion.div>
+    </div>
+  );
+}
