@@ -7,7 +7,7 @@
   <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    /* 3D 카드 뒤집기 + 사파리 대응 */
+    /* 3D 카드 + 사파리 대응 */
     .scene { perspective: 1200px; -webkit-perspective: 1200px; }
     .card {
       transform-style: preserve-3d; -webkit-transform-style: preserve-3d;
@@ -17,10 +17,9 @@
     .card.is-flipped { transform: rotateY(180deg); }
     .card-face { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
     .card-back { transform: rotateY(180deg); }
-    /* 보이지 않는 면 완전 숨김 */
+    /* 보이지 않는 면 완전 숨김(검은 화면 방지) */
     .hidden-face { opacity: 0; pointer-events: none; }
     .visible-face { opacity: 1; pointer-events: auto; }
-    /* 버튼 포커스 링 */
     .focus-ring { outline: none; }
     .focus-ring:focus { box-shadow: 0 0 0 2px rgba(251,191,36,.6); }
   </style>
@@ -117,9 +116,9 @@
           </header>
 
           <div class="scene relative">
-            <div id="card" class="card relative h-64 sm:h-72 w-full ${flipped?'is-flipped':''}">
+            <div id="card" class="card relative h-64 sm:h-72 w-full">
               <!-- 앞면 -->
-              <div class="card-face front absolute inset-0 rounded-3xl shadow-2xl overflow-hidden border border-emerald-300/25 ${flipped?'hidden-face':'visible-face'}">
+              <div class="card-face front absolute inset-0 rounded-3xl shadow-2xl overflow-hidden border border-emerald-300/25 visible-face">
                 <div class="h-full w-full bg-gradient-to-br from-[#cfe8b6] via-[#b9d8a2] to-[#9dc58a] relative flex flex-col items-center justify-center text-emerald-950/90">
                   <div class="absolute inset-0" style="background:
                     radial-gradient(circle at 25% 20%, rgba(255,255,255,.45), transparent 45%),
@@ -129,8 +128,7 @@
                 </div>
               </div>
               <!-- 뒷면 -->
-              <div class="card-face card-back absolute inset-0 rounded-3xl shadow-2xl overflow-hidden border border-white/10 ${flipped?'visible-face':'hidden-face'}">
-                <!-- ★★★ 검은 화면 방지를 위해 확실한 배경 지정 ★★★ -->
+              <div class="card-face card-back absolute inset-0 rounded-3xl shadow-2xl overflow-hidden border border-white/10 hidden-face">
                 <div class="h-full w-full bg-gradient-to-b from-slate-900/70 to-slate-800/60 backdrop-blur-sm">
                   <div class="h-full w-full flex flex-col items-center justify-center p-6 text-center">
                     ${currentObj ? `
@@ -164,29 +162,55 @@
         </div>
       `;
 
-      // 이벤트
+      bindEvents();
+      updateFlip(); // 렌더 후 현재 flip 상태 동기화
+    }
+
+    /* ---------- 애니메이션만 토글 (DOM 재생성 안 함) ---------- */
+    function updateFlip(){
+      const card = document.getElementById('card');
+      if (!card) return;
+      card.classList.toggle('is-flipped', flipped);
+
+      const front = card.querySelector('.front');
+      const back  = card.querySelector('.card-back');
+      if (front && back){
+        front.classList.toggle('hidden-face', flipped);
+        front.classList.toggle('visible-face', !flipped);
+        back .classList.toggle('hidden-face', !flipped);
+        back .classList.toggle('visible-face', flipped);
+      }
+    }
+
+    function bindEvents(){
       document.getElementById('btn-flip').onclick = () => {
-        if (current===null){ drawNew(); flipped=true; }
-        else { flipped=!flipped; }
-        render();
+        if (current===null){           // 첫 뒤집기: 주제 뽑고 애니메이션
+          drawNew();                   // 내용 갱신
+          render();                    // DOM 생성
+        }
+        flipped = !flipped;
+        updateFlip();                  // ✅ DOM 재생성 없이 회전만
       };
+
       document.getElementById('btn-new').onclick = () => {
         drawNew();
-        flipped=false; // 새 카드는 앞면부터
-        render();
+        flipped = false;               // 새 카드는 앞면부터
+        render();                      // 내용/버튼 상태 갱신 후 updateFlip 호출됨
       };
+
       document.getElementById('btn-copy').onclick = async () => {
         const obj = SITUATIONS.find(s=>s.id===current);
         if(!obj) return;
         try{ await navigator.clipboard.writeText(`오늘의 이모티콘 주제: ${obj.title}`); toast('복사했어요!'); }
         catch{ toast('복사 실패'); }
       };
+
       document.getElementById('btn-history').onclick = openHistory;
     }
 
-    /* ---------- 추천 로직 ---------- */
+    /* ---------- 추천 & 히스토리 ---------- */
     function drawNew(){
-      const pool = SITUATIONS; // (현재는 카테고리 필터 없이 전체)
+      const pool = SITUATIONS;
       const next = pool[Math.floor(Math.random()*pool.length)];
       current = next.id;
       usedIds = Array.from(new Set([...usedIds, next.id]));
@@ -194,7 +218,6 @@
       save();
     }
 
-    /* ---------- 히스토리 모달 ---------- */
     function openHistory(){
       const wrap=document.createElement('div');
       wrap.className='fixed inset-0 z-50 flex items-center justify-center';
@@ -226,14 +249,12 @@
       document.body.appendChild(wrap);
       wrap.querySelector('#close').onclick=()=> wrap.remove();
       wrap.querySelectorAll('[data-copy]').forEach(btn=> btn.onclick = async (e)=>{
-        const val=e.currentTarget.getAttribute('data-copy');
-        if(!val) return;
+        const val=e.currentTarget.getAttribute('data-copy'); if(!val) return;
         try{ await navigator.clipboard.writeText(val); toast('복사했어요'); }catch{ toast('복사 실패'); }
       });
       wrap.querySelectorAll('[data-view]').forEach(btn=> btn.onclick = (e)=>{
-        const id=Number(e.currentTarget.getAttribute('data-view'));
-        if(!id) return;
-        current=id; flipped=true; save(); render(); wrap.remove();
+        const id=Number(e.currentTarget.getAttribute('data-view')); if(!id) return;
+        current=id; flipped=true; save(); updateFlip(); render(); wrap.remove();
       });
     }
 
